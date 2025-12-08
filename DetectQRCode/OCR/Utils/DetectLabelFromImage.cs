@@ -19,6 +19,7 @@ namespace DetectQRCode.OCR.Utils
         {
             try
             {
+               
                 var bmpFull = MatToBitmap(frame);
                 var roiResult = GetGuideBoxRoi(bmpFull, cameraBox.GuideBox, cameraBox);
                 var roi = roiResult.Image;
@@ -49,8 +50,25 @@ namespace DetectQRCode.OCR.Utils
                 try
                 {
                     using var mat = frame.Clone();
-                    //var preImageProcess = PreImageProcess(roi);
-                    //picPreprocessed.Image = preImageProcess;
+                    
+                    // Hiển thị ROI lên picPreprocessed
+                    if (roi != null && picPreprocessed != null)
+                    {
+                        picPreprocessed.BeginInvoke(new Action(() =>
+                        {
+                            try
+                            {
+                                var old = picPreprocessed.Image;
+                                picPreprocessed.Image = (Bitmap)roi.Clone();
+                                old?.Dispose();
+                            }
+                            catch (Exception ex)
+                            {
+                                Debug.WriteLine($"[⚠ DISPLAY ROI ERROR] {ex.Message}");
+                            }
+                        }));
+                    }
+
                     var (qrPoints, qrText) = LabelDetectorZXing.DetectQRCodeZXing(roi); //LabelDetector.DetectQRCode(roi);
                     //var (qrPoints1, qrText1) = LabelDetector.DetectQRCode(roi);
                     //var a = qrPoints;

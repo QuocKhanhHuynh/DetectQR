@@ -39,9 +39,14 @@
             this.lblProductCode = new System.Windows.Forms.Label();
             this.lblProductTotal = new System.Windows.Forms.Label();
             this.lblStatus = new System.Windows.Forms.Label();
+            this.lblFPS = new System.Windows.Forms.Label();
             this.panel1 = new System.Windows.Forms.Panel();
             this.label1 = new System.Windows.Forms.Label();
             this.btnSaveFrame = new System.Windows.Forms.Button();
+            this.btnSaveNghieng = new System.Windows.Forms.Button();
+            this.btnSaveMo = new System.Windows.Forms.Button();
+            this.btnSaveCong = new System.Windows.Forms.Button();
+            this.btnSaveNho = new System.Windows.Forms.Button();
             this.rbCamera = new System.Windows.Forms.RadioButton();
             this.rbImportImage = new System.Windows.Forms.RadioButton();
             this.btnBrowseImage = new System.Windows.Forms.Button();
@@ -174,10 +179,22 @@
             this.lblStatus.ForeColor = System.Drawing.Color.Gray;
             this.lblStatus.Location = new System.Drawing.Point(12, 640);
             this.lblStatus.Name = "lblStatus";
-            this.lblStatus.Size = new System.Drawing.Size(960, 25);
+            this.lblStatus.Size = new System.Drawing.Size(760, 25);
             this.lblStatus.TabIndex = 9;
             this.lblStatus.Text = "Ready";
             this.lblStatus.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
+            // 
+            // lblFPS
+            // 
+            this.lblFPS.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Right)));
+            this.lblFPS.Font = new System.Drawing.Font("Segoe UI", 10F, System.Drawing.FontStyle.Bold);
+            this.lblFPS.ForeColor = System.Drawing.Color.DodgerBlue;
+            this.lblFPS.Location = new System.Drawing.Point(780, 640);
+            this.lblFPS.Name = "lblFPS";
+            this.lblFPS.Size = new System.Drawing.Size(190, 25);
+            this.lblFPS.TabIndex = 21;
+            this.lblFPS.Text = "FPS: 0.0 | Processed: 0.0";
+            this.lblFPS.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
             // 
             // panel1
             // 
@@ -209,15 +226,71 @@
             // 
             this.btnSaveFrame.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(52)))), ((int)(((byte)(152)))), ((int)(((byte)(219)))));
             this.btnSaveFrame.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
-            this.btnSaveFrame.Font = new System.Drawing.Font("Segoe UI", 10F, System.Drawing.FontStyle.Bold);
+            this.btnSaveFrame.Font = new System.Drawing.Font("Segoe UI", 9F, System.Drawing.FontStyle.Bold);
             this.btnSaveFrame.ForeColor = System.Drawing.Color.White;
-            this.btnSaveFrame.Location = new System.Drawing.Point(770, 12);
+            this.btnSaveFrame.Location = new System.Drawing.Point(910, 12);
             this.btnSaveFrame.Name = "btnSaveFrame";
-            this.btnSaveFrame.Size = new System.Drawing.Size(120, 38);
+            this.btnSaveFrame.Size = new System.Drawing.Size(90, 38);
             this.btnSaveFrame.TabIndex = 12;
-            this.btnSaveFrame.Text = "Save Frame";
+            this.btnSaveFrame.Text = "Lưu";
             this.btnSaveFrame.UseVisualStyleBackColor = false;
             this.btnSaveFrame.Click += new System.EventHandler(this.btnSaveFrame_Click);
+            // 
+            // btnSaveNghieng
+            // 
+            this.btnSaveNghieng.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(230)))), ((int)(((byte)(126)))), ((int)(((byte)(34)))));
+            this.btnSaveNghieng.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+            this.btnSaveNghieng.Font = new System.Drawing.Font("Segoe UI", 9F, System.Drawing.FontStyle.Bold);
+            this.btnSaveNghieng.ForeColor = System.Drawing.Color.White;
+            this.btnSaveNghieng.Location = new System.Drawing.Point(12, 645);
+            this.btnSaveNghieng.Name = "btnSaveNghieng";
+            this.btnSaveNghieng.Size = new System.Drawing.Size(110, 35);
+            this.btnSaveNghieng.TabIndex = 17;
+            this.btnSaveNghieng.Text = "💾 Nghiêng";
+            this.btnSaveNghieng.UseVisualStyleBackColor = false;
+            this.btnSaveNghieng.Click += new System.EventHandler(this.btnSaveNghieng_Click);
+            // 
+            // btnSaveMo
+            // 
+            this.btnSaveMo.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(155)))), ((int)(((byte)(89)))), ((int)(((byte)(182)))));
+            this.btnSaveMo.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+            this.btnSaveMo.Font = new System.Drawing.Font("Segoe UI", 9F, System.Drawing.FontStyle.Bold);
+            this.btnSaveMo.ForeColor = System.Drawing.Color.White;
+            this.btnSaveMo.Location = new System.Drawing.Point(130, 645);
+            this.btnSaveMo.Name = "btnSaveMo";
+            this.btnSaveMo.Size = new System.Drawing.Size(110, 35);
+            this.btnSaveMo.TabIndex = 18;
+            this.btnSaveMo.Text = "💾 Mờ";
+            this.btnSaveMo.UseVisualStyleBackColor = false;
+            this.btnSaveMo.Click += new System.EventHandler(this.btnSaveMo_Click);
+            // 
+            // btnSaveCong
+            // 
+            this.btnSaveCong.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(41)))), ((int)(((byte)(128)))), ((int)(((byte)(185)))));
+            this.btnSaveCong.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+            this.btnSaveCong.Font = new System.Drawing.Font("Segoe UI", 9F, System.Drawing.FontStyle.Bold);
+            this.btnSaveCong.ForeColor = System.Drawing.Color.White;
+            this.btnSaveCong.Location = new System.Drawing.Point(248, 645);
+            this.btnSaveCong.Name = "btnSaveCong";
+            this.btnSaveCong.Size = new System.Drawing.Size(110, 35);
+            this.btnSaveCong.TabIndex = 19;
+            this.btnSaveCong.Text = "💾 Cong";
+            this.btnSaveCong.UseVisualStyleBackColor = false;
+            this.btnSaveCong.Click += new System.EventHandler(this.btnSaveCong_Click);
+            // 
+            // btnSaveNho
+            // 
+            this.btnSaveNho.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(39)))), ((int)(((byte)(174)))), ((int)(((byte)(96)))));
+            this.btnSaveNho.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+            this.btnSaveNho.Font = new System.Drawing.Font("Segoe UI", 9F, System.Drawing.FontStyle.Bold);
+            this.btnSaveNho.ForeColor = System.Drawing.Color.White;
+            this.btnSaveNho.Location = new System.Drawing.Point(366, 645);
+            this.btnSaveNho.Name = "btnSaveNho";
+            this.btnSaveNho.Size = new System.Drawing.Size(110, 35);
+            this.btnSaveNho.TabIndex = 20;
+            this.btnSaveNho.Text = "💾 Nhỏ";
+            this.btnSaveNho.UseVisualStyleBackColor = false;
+            this.btnSaveNho.Click += new System.EventHandler(this.btnSaveNho_Click);
             // 
             // rbCamera
             // 
@@ -264,7 +337,12 @@
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(8F, 20F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(1300, 680);
+            this.ClientSize = new System.Drawing.Size(1300, 690);
+            this.Controls.Add(this.btnSaveNho);
+            this.Controls.Add(this.btnSaveCong);
+            this.Controls.Add(this.btnSaveMo);
+            this.Controls.Add(this.btnSaveNghieng);
+            this.Controls.Add(this.lblFPS);
             this.Controls.Add(this.btnBrowseImage);
             this.Controls.Add(this.rbImportImage);
             this.Controls.Add(this.rbCamera);
@@ -303,9 +381,14 @@
         private System.Windows.Forms.Label lblProductCode;
         private System.Windows.Forms.Label lblProductTotal;
         private System.Windows.Forms.Label lblStatus;
+        private System.Windows.Forms.Label lblFPS;
         private System.Windows.Forms.Panel panel1;
         private System.Windows.Forms.Label label1;
         private System.Windows.Forms.Button btnSaveFrame;
+        private System.Windows.Forms.Button btnSaveNghieng;
+        private System.Windows.Forms.Button btnSaveMo;
+        private System.Windows.Forms.Button btnSaveCong;
+        private System.Windows.Forms.Button btnSaveNho;
         private System.Windows.Forms.RadioButton rbCamera;
         private System.Windows.Forms.RadioButton rbImportImage;
         private System.Windows.Forms.Button btnBrowseImage;

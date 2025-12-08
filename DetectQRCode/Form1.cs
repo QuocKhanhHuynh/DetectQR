@@ -30,6 +30,12 @@ namespace DetectQRCode
         // Mode: Camera or Import
         private bool _isCameraMode = true;
 
+        // FPS tracking
+        private int _frameCount = 0;
+        private int _processedFrameCount = 0;
+        private DateTime _fpsStartTime = DateTime.Now;
+        private System.Windows.Forms.Timer? _fpsTimer;
+
         public Form1()
         {
             InitializeComponent();
@@ -64,6 +70,13 @@ namespace DetectQRCode
                         cmbCameraDevices.SelectedIndex = 0;
                     }
                 }
+
+                // Initialize FPS timer (update every 1 second)
+                _fpsTimer = new System.Windows.Forms.Timer();
+                _fpsTimer.Interval = 1000; // 1 second
+                _fpsTimer.Tick += FpsTimer_Tick;
+                _fpsTimer.Start();
+                _fpsStartTime = DateTime.Now;
 
                 UpdateStatus("Ready. Select mode: Camera or Import Image.", Color.Green);
             }
@@ -125,6 +138,9 @@ namespace DetectQRCode
 
         private void VideoSource_NewFrame(object sender, NewFrameEventArgs eventArgs)
         {
+            // Tăng frame counter
+            System.Threading.Interlocked.Increment(ref _frameCount);
+
             // Lấy frame mới từ camera
             Bitmap bitmap = (Bitmap)eventArgs.Frame.Clone();
 
@@ -161,6 +177,7 @@ namespace DetectQRCode
 
                     _isProcessingFrame = true;
                     _lastOcrProcessTime = DateTime.Now;
+                    System.Threading.Interlocked.Increment(ref _processedFrameCount);
 
                     try
                     {
@@ -261,6 +278,31 @@ namespace DetectQRCode
 
         private void btnSaveFrame_Click(object sender, EventArgs e)
         {
+            SaveFrameToFolder(""); // Root SavedFrames folder
+        }
+
+        private void btnSaveNghieng_Click(object sender, EventArgs e)
+        {
+            SaveFrameToFolder("Nghiêng");
+        }
+
+        private void btnSaveMo_Click(object sender, EventArgs e)
+        {
+            SaveFrameToFolder("Mờ");
+        }
+
+        private void btnSaveCong_Click(object sender, EventArgs e)
+        {
+            SaveFrameToFolder("Cong");
+        }
+
+        private void btnSaveNho_Click(object sender, EventArgs e)
+        {
+            SaveFrameToFolder("Nhỏ");
+        }
+
+        private void SaveFrameToFolder(string subFolder)
+        {
             try
             {
                 Bitmap? frameToSave = null;
@@ -278,9 +320,15 @@ namespace DetectQRCode
                     return;
                 }
 
-                // Create directory: OCR/SavedFrames/
+                // Create directory: OCR/SavedFrames/[SubFolder]/
                 var baseDir = AppDomain.CurrentDomain.BaseDirectory;
                 var savedFramesDir = System.IO.Path.Combine(baseDir, "OCR", "SavedFrames");
+                
+                if (!string.IsNullOrEmpty(subFolder))
+                {
+                    savedFramesDir = System.IO.Path.Combine(savedFramesDir, subFolder);
+                }
+                
                 System.IO.Directory.CreateDirectory(savedFramesDir);
 
                 // Create filename: Frame_Timestamp.png
@@ -292,7 +340,8 @@ namespace DetectQRCode
                 frameToSave.Save(filePath, ImageFormat.Png);
                 frameToSave.Dispose();
 
-                UpdateStatus($"Frame saved: {fileName}", Color.Green);
+                var folderInfo = string.IsNullOrEmpty(subFolder) ? "" : $" to {subFolder}";
+                UpdateStatus($"Frame saved{folderInfo}: {fileName}", Color.Green);
                 Debug.WriteLine($"Frame saved: {filePath}");
             }
             catch (Exception ex)
@@ -488,8 +537,33 @@ namespace DetectQRCode
             lblStatus.ForeColor = color;
         }
 
+        private void FpsTimer_Tick(object? sender, EventArgs e)
+        {
+            var elapsed = (DateTime.Now - _fpsStartTime).TotalSeconds;
+            if (elapsed <= 0) return;
+
+            double fps = _frameCount / elapsed;
+            double processedFps = _processedFrameCount / elapsed;
+
+            // Update FPS label
+            if (lblFPS != null)
+            {
+                lblFPS.Text = $"FPS: {fps:F1} | Processed: {processedFps:F1}";
+            }
+
+            // Reset counters
+            _frameCount = 0;
+            _processedFrameCount = 0;
+            _fpsStartTime = DateTime.Now;
+        }
+
+
+
         private void Form1_FormClosing(object? sender, FormClosingEventArgs e)
         {
+            _fpsTimer?.Stop();
+            _fpsTimer?.Dispose();
+
             StopCamera();
             
             lock (_frameLock)
