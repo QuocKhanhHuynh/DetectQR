@@ -1,0 +1,487 @@
+using OpenCvSharp;
+using System;
+using System.Drawing;
+using System.Drawing.Imaging;
+using System.IO;
+
+namespace DetectQRCode.OCR.Utils
+{
+    /// <summary>
+    /// Các hàm xử lý hình ảnh để cải thiện chất lượng ROI
+    /// Sử dụng sau khi YOLO crop label, trước khi xử lý tiếp
+    /// 5 case: Cong, Mờ, Nghiêng, Nhỏ, Tối
+    /// </summary>
+    public static class ImageEnhancer
+    {
+        #region 1. XỬ LÝ ẢNH BỊ CONG (Distortion Correction)
+
+        /// <summary>
+        /// Sửa ảnh bị cong bằng perspective transform
+        /// Input: Bitmap ROI có thể bị cong
+        /// Output: Bitmap đã được straighten
+        /// Thời gian: ~15-20ms
+        /// </summary>
+        public static Bitmap CorrectDistortion(Bitmap input)
+        {
+            try
+            {
+                using Mat src = BitmapToMat(input);
+                using Mat gray = new Mat();
+                Cv2.CvtColor(src, gray, ColorConversionCodes.BGR2GRAY);
+
+                // Tìm edges
+                using Mat edges = new Mat();
+                Cv2.Canny(gray, edges, 50, 150);
+
+                // Tìm contours
+                Cv2.FindContours(edges, out var contours, out _, 
+                    RetrievalModes.External, ContourApproximationModes.ApproxSimple);
+
+                if (contours.Length == 0)
+                    return (Bitmap)input.Clone();
+
+                // Tìm contour lớn nhất
+                var largestContour = contours[0];
+                double maxArea = Cv2.ContourArea(largestContour);
+                
+                foreach (var contour in contours)
+                {
+                    double area = Cv2.ContourArea(contour);
+                    if (area > maxArea)
+                    {
+                        maxArea = area;
+                        largestContour = contour;
+                    }
+                }
+
+                // Approximate polygon
+                var epsilon = 0.02 * Cv2.ArcLength(largestContour, true);
+                var approx = Cv2.ApproxPolyDP(largestContour, epsilon, true);
+
+                // Nếu có 4 điểm, thực hiện perspective transform
+                if (approx.Length == 4)
+                {
+                    var srcPoints = new Point2f[4];
+                    for (int i = 0; i < 4; i++)
+                    {
+                        srcPoints[i] = new Point2f(approx[i].X, approx[i].Y);
+                    }
+
+                    // Sắp xếp điểm: TL, TR, BR, BL
+                    srcPoints = SortPoints(srcPoints);
+
+                    // Tính kích thước output
+                    float width = Math.Max(
+                        Distance(srcPoints[0], srcPoints[1]),
+                        Distance(srcPoints[2], srcPoints[3])
+                    );
+                    float height = Math.Max(
+                        Distance(srcPoints[0], srcPoints[3]),
+                        Distance(srcPoints[1], srcPoints[2])
+                    );
+
+                    var dstPoints = new Point2f[]
+                    {
+                        new Point2f(0, 0),
+                        new Point2f(width, 0),
+                        new Point2f(width, height),
+                        new Point2f(0, height)
+                    };
+
+                    using Mat transform = Cv2.GetPerspectiveTransform(srcPoints, dstPoints);
+                    using Mat corrected = new Mat();
+                    Cv2.WarpPerspective(src, corrected, transform, 
+                        new Size((int)width, (int)height));
+
+                    return MatToBitmap(corrected);
+                }
+
+                return (Bitmap)input.Clone();
+            }
+            catch
+            {
+                return (Bitmap)input.Clone();
+            }
+        }
+
+        #endregion
+
+        #region 2. XỬ LÝ ẢNH MỜ (Deblurring)
+
+        /// <summary>
+        /// Làm sắc nét ảnh bị mờ bằng Unsharp Mask
+        /// Input: Bitmap ROI bị mờ
+        /// Output: Bitmap đã được sharpen
+        /// Thời gian: ~10-15ms
+        /// </summary>
+        public static Bitmap SharpenBlurry(Bitmap input)
+        {
+            try
+            {
+                using Mat src = BitmapToMat(input);
+
+                // Gaussian blur
+                using Mat blurred = new Mat();
+                Cv2.GaussianBlur(src, blurred, new Size(0, 0), 1.0);
+
+                // Unsharp mask: original + amount * (original - blurred)
+                using Mat sharpened = new Mat();
+                double amount = 1.5;
+                Cv2.AddWeighted(src, 1.0 + amount, blurred, -amount, 0, sharpened);
+
+                return MatToBitmap(sharpened);
+            }
+            catch
+            {
+                return (Bitmap)input.Clone();
+            }
+        }
+
+        #endregion
+
+        #region 3. XỬ LÝ ẢNH NGHIÊNG (Deskewing)
+
+        /// <summary>
+        /// Xoay ảnh nghiêng về thẳng
+        /// Input: Bitmap ROI bị nghiêng
+        /// Output: Bitmap đã được deskew
+        /// Thời gian: ~15-20ms
+        /// </summary>
+        public static Bitmap CorrectSkew(Bitmap input)
+        {
+            try
+            {
+                using Mat src = BitmapToMat(input);
+                using Mat gray = new Mat();
+                Cv2.CvtColor(src, gray, ColorConversionCodes.BGR2GRAY);
+
+                // Threshold
+                using Mat binary = new Mat();
+                Cv2.Threshold(gray, binary, 0, 255, 
+                    ThresholdTypes.Binary | ThresholdTypes.Otsu);
+
+                // Tìm contours
+                Cv2.FindContours(binary, out var contours, out _, 
+                    RetrievalModes.List, ContourApproximationModes.ApproxSimple);
+
+                if (contours.Length == 0)
+                    return (Bitmap)input.Clone();
+
+                // Tìm contour lớn nhất
+                var largestContour = contours[0];
+                double maxArea = Cv2.ContourArea(largestContour);
+                
+                foreach (var contour in contours)
+                {
+                    double area = Cv2.ContourArea(contour);
+                    if (area > maxArea)
+                    {
+                        maxArea = area;
+                        largestContour = contour;
+                    }
+                }
+
+                // Tính góc nghiêng
+                var rect = Cv2.MinAreaRect(largestContour);
+                double angle = rect.Angle;
+
+                // Điều chỉnh angle
+                if (angle < -45)
+                    angle += 90;
+                else if (angle > 45)
+                    angle -= 90;
+
+                // Nếu góc quá nhỏ, không cần xoay
+                if (Math.Abs(angle) < 0.5)
+                    return (Bitmap)input.Clone();
+
+                // Xoay ảnh
+                var center = new Point2f(src.Width / 2f, src.Height / 2f);
+                using Mat rotationMatrix = Cv2.GetRotationMatrix2D(center, -angle, 1.0);
+
+                // Tính kích thước mới
+                double radians = Math.Abs(angle) * Math.PI / 180.0;
+                int newWidth = (int)(src.Height * Math.Abs(Math.Sin(radians)) + 
+                                     src.Width * Math.Abs(Math.Cos(radians)));
+                int newHeight = (int)(src.Height * Math.Abs(Math.Cos(radians)) + 
+                                      src.Width * Math.Abs(Math.Sin(radians)));
+
+                // Điều chỉnh translation
+                rotationMatrix.Set(0, 2, rotationMatrix.At<double>(0, 2) + 
+                    (newWidth - src.Width) / 2.0);
+                rotationMatrix.Set(1, 2, rotationMatrix.At<double>(1, 2) + 
+                    (newHeight - src.Height) / 2.0);
+
+                using Mat rotated = new Mat();
+                Cv2.WarpAffine(src, rotated, rotationMatrix, 
+                    new Size(newWidth, newHeight), 
+                    InterpolationFlags.Cubic, 
+                    BorderTypes.Constant, 
+                    Scalar.White);
+
+                return MatToBitmap(rotated);
+            }
+            catch
+            {
+                return (Bitmap)input.Clone();
+            }
+        }
+
+        #endregion
+
+        #region 4. XỬ LÝ ẢNH NHỎ (Upscaling)
+
+        /// <summary>
+        /// Phóng to ảnh nhỏ bằng Bicubic interpolation
+        /// Input: Bitmap ROI kích thước nhỏ
+        /// Output: Bitmap đã được upscale
+        /// Thời gian: ~5-10ms
+        /// </summary>
+        public static Bitmap UpscaleSmall(Bitmap input, double scaleFactor = 2.0)
+        {
+            try
+            {
+                using Mat src = BitmapToMat(input);
+
+                // Upscale
+                using Mat upscaled = new Mat();
+                Cv2.Resize(src, upscaled, new Size(), scaleFactor, scaleFactor, 
+                    InterpolationFlags.Cubic);
+
+                // Denoise nhẹ sau khi upscale
+                using Mat denoised = new Mat();
+                Cv2.BilateralFilter(upscaled, denoised, 5, 50, 50);
+
+                return MatToBitmap(denoised);
+            }
+            catch
+            {
+                return (Bitmap)input.Clone();
+            }
+        }
+
+        #endregion
+
+        #region 5. XỬ LÝ ẢNH TỐI (Brightness Enhancement)
+
+        /// <summary>
+        /// Tăng độ sáng cho ảnh tối bằng CLAHE
+        /// Input: Bitmap ROI tối
+        /// Output: Bitmap đã được enhance
+        /// Thời gian: ~10-15ms
+        /// </summary>
+        public static Bitmap EnhanceDark(Bitmap input, double clipLimit = 3.0)
+        {
+            try
+            {
+                using Mat src = BitmapToMat(input);
+
+                // Convert to LAB color space
+                using Mat lab = new Mat();
+                Cv2.CvtColor(src, lab, ColorConversionCodes.BGR2Lab);
+
+                // Split channels
+                Mat[] channels = Cv2.Split(lab);
+
+                // Apply CLAHE to L channel
+                using var clahe = Cv2.CreateCLAHE(
+                    clipLimit: clipLimit, 
+                    tileGridSize: new Size(8, 8)
+                );
+                clahe.Apply(channels[0], channels[0]);
+
+                // Merge back
+                Cv2.Merge(channels, lab);
+                foreach (var ch in channels) ch.Dispose();
+
+                // Convert back to BGR
+                using Mat result = new Mat();
+                Cv2.CvtColor(lab, result, ColorConversionCodes.Lab2BGR);
+
+                return MatToBitmap(result);
+            }
+            catch
+            {
+                return (Bitmap)input.Clone();
+            }
+        }
+
+        #endregion
+
+        #region BONUS: Auto Enhancement (Tự động phát hiện và xử lý)
+
+        /// <summary>
+        /// Tự động phát hiện vấn đề và áp dụng enhancement phù hợp
+        /// Input: Bitmap ROI
+        /// Output: Bitmap đã được enhance
+        /// Thời gian: ~30-50ms (tùy số lượng enhancement cần áp dụng)
+        /// </summary>
+        public static Bitmap AutoEnhance(Bitmap input)
+        {
+            try
+            {
+                var current = (Bitmap)input.Clone();
+
+                using Mat mat = BitmapToMat(current);
+
+                // 1. Kiểm tra độ tối
+                bool isDark = CheckIfDark(mat);
+                if (isDark)
+                {
+                    var enhanced = EnhanceDark(current);
+                    current.Dispose();
+                    current = enhanced;
+                }
+
+                // 2. Kiểm tra độ mờ
+                bool isBlurry = CheckIfBlurry(mat);
+                if (isBlurry)
+                {
+                    var sharpened = SharpenBlurry(current);
+                    current.Dispose();
+                    current = sharpened;
+                }
+
+                // 3. Kiểm tra kích thước
+                int minDim = Math.Min(current.Width, current.Height);
+                if (minDim < 400)
+                {
+                    double scale = 400.0 / minDim;
+                    var upscaled = UpscaleSmall(current, scale);
+                    current.Dispose();
+                    current = upscaled;
+                }
+
+                // 4. Kiểm tra nghiêng (tốn thời gian, có thể bỏ qua)
+                // var deskewed = CorrectSkew(current);
+                // current.Dispose();
+                // current = deskewed;
+
+                return current;
+            }
+            catch
+            {
+                return (Bitmap)input.Clone();
+            }
+        }
+
+        #endregion
+
+        #region Helper Methods
+
+        /// <summary>
+        /// Kiểm tra ảnh có tối không
+        /// </summary>
+        private static bool CheckIfDark(Mat image, double threshold = 100)
+        {
+            using Mat gray = new Mat();
+            Cv2.CvtColor(image, gray, ColorConversionCodes.BGR2GRAY);
+            var mean = Cv2.Mean(gray);
+            return mean.Val0 < threshold;
+        }
+
+        /// <summary>
+        /// Kiểm tra ảnh có mờ không (Laplacian variance)
+        /// </summary>
+        private static bool CheckIfBlurry(Mat image, double threshold = 100)
+        {
+            using Mat gray = new Mat();
+            Cv2.CvtColor(image, gray, ColorConversionCodes.BGR2GRAY);
+
+            using Mat laplacian = new Mat();
+            Cv2.Laplacian(gray, laplacian, MatType.CV_64F);
+
+            Cv2.MeanStdDev(laplacian, out _, out var stddev);
+            double variance = stddev.Val0 * stddev.Val0;
+
+            return variance < threshold;
+        }
+
+        /// <summary>
+        /// Sắp xếp 4 điểm theo thứ tự: TL, TR, BR, BL
+        /// </summary>
+        private static Point2f[] SortPoints(Point2f[] points)
+        {
+            // Tính tổng và hiệu
+            var sorted = new Point2f[4];
+            
+            // Top-left: tổng nhỏ nhất
+            // Bottom-right: tổng lớn nhất
+            var sums = new float[4];
+            for (int i = 0; i < 4; i++)
+                sums[i] = points[i].X + points[i].Y;
+
+            int tlIdx = Array.IndexOf(sums, sums.Min());
+            int brIdx = Array.IndexOf(sums, sums.Max());
+
+            sorted[0] = points[tlIdx]; // TL
+            sorted[2] = points[brIdx]; // BR
+
+            // Top-right: hiệu lớn nhất (x - y)
+            // Bottom-left: hiệu nhỏ nhất
+            var diffs = new float[4];
+            for (int i = 0; i < 4; i++)
+                diffs[i] = points[i].X - points[i].Y;
+
+            int trIdx = Array.IndexOf(diffs, diffs.Max());
+            int blIdx = Array.IndexOf(diffs, diffs.Min());
+
+            sorted[1] = points[trIdx]; // TR
+            sorted[3] = points[blIdx]; // BL
+
+            return sorted;
+        }
+
+        /// <summary>
+        /// Tính khoảng cách giữa 2 điểm
+        /// </summary>
+        private static float Distance(Point2f p1, Point2f p2)
+        {
+            float dx = p2.X - p1.X;
+            float dy = p2.Y - p1.Y;
+            return (float)Math.Sqrt(dx * dx + dy * dy);
+        }
+
+        /// <summary>
+        /// Convert Bitmap to Mat
+        /// </summary>
+        private static Mat BitmapToMat(Bitmap bmp)
+        {
+            using var ms = new MemoryStream();
+            bmp.Save(ms, ImageFormat.Png);
+            return Cv2.ImDecode(ms.ToArray(), ImreadModes.Color);
+        }
+
+        /// <summary>
+        /// Convert Mat to Bitmap
+        /// </summary>
+        private static Bitmap MatToBitmap(Mat mat)
+        {
+            int w = mat.Width;
+            int h = mat.Height;
+            int channels = mat.Channels();
+
+            Bitmap bmp = new Bitmap(w, h, PixelFormat.Format24bppRgb);
+            var rect = new Rectangle(0, 0, w, h);
+            var bmpData = bmp.LockBits(rect, ImageLockMode.WriteOnly, bmp.PixelFormat);
+
+            int stride = bmpData.Stride;
+            int rowLength = w * channels;
+            byte[] buffer = new byte[rowLength];
+
+            for (int y = 0; y < h; y++)
+            {
+                IntPtr src = mat.Data + y * (int)mat.Step();
+                System.Runtime.InteropServices.Marshal.Copy(src, buffer, 0, rowLength);
+
+                IntPtr dst = bmpData.Scan0 + y * stride;
+                System.Runtime.InteropServices.Marshal.Copy(buffer, 0, dst, rowLength);
+            }
+
+            bmp.UnlockBits(bmpData);
+            return bmp;
+        }
+
+        #endregion
+    }
+}
