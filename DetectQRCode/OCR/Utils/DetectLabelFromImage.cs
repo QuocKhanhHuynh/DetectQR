@@ -69,7 +69,7 @@ namespace DetectQRCode.OCR.Utils
                         }));
                     }
 
-                    var (qrPoints, qrText) = LabelDetectorZXing.DetectQRCodeZXing(roi); //LabelDetector.DetectQRCode(roi);
+                    var (qrPoints, qrText) = LabelDetector.DetectQRCode(roi);// LabelDetectorZXing.DetectQRCodeZXing(roi); //LabelDetector.DetectQRCode(roi);
                     //var (qrPoints1, qrText1) = LabelDetector.DetectQRCode(roi);
                     //var a = qrPoints;
                     //var b = qrPoints1;
@@ -77,7 +77,7 @@ namespace DetectQRCode.OCR.Utils
 
                     if (qrPoints != null)
                     {
-                        /*var (rect, rectPoints, debugBmp1, rectInGuildlBox) = LabelDetector.DetectLabelRegionWithQrCode(roi, qrPoints);
+                        var (rect, rectPoints, debugBmp1, rectInGuildlBox) = LabelDetector.DetectLabelRegionWithQrCode(roi, qrPoints);
 
                         if (rectPoints != null && rectInGuildlBox)
                         {
@@ -152,8 +152,8 @@ namespace DetectQRCode.OCR.Utils
 
                             roi.Dispose();
                             bmpFull.Dispose();
-                        }*/
-                        var debugBmp = MatToBitmap(mat);
+                        }
+                        /*var debugBmp = MatToBitmap(mat);
                         cameraBox.BeginInvoke(new Action(() =>
                         {
                             var old = cameraBox.Image;
@@ -162,7 +162,7 @@ namespace DetectQRCode.OCR.Utils
                             old?.Dispose();
                         }));
                         roi.Dispose();
-                        bmpFull.Dispose();
+                        bmpFull.Dispose();*/
                     }
                     else
                     {
