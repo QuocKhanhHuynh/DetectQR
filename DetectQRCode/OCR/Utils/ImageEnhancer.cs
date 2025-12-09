@@ -3,6 +3,7 @@ using System;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
+using CvSize = OpenCvSharp.Size;
 
 namespace DetectQRCode.OCR.Utils
 {
@@ -91,7 +92,7 @@ namespace DetectQRCode.OCR.Utils
                     using Mat transform = Cv2.GetPerspectiveTransform(srcPoints, dstPoints);
                     using Mat corrected = new Mat();
                     Cv2.WarpPerspective(src, corrected, transform, 
-                        new Size((int)width, (int)height));
+                        new CvSize((int)width, (int)height));
 
                     return MatToBitmap(corrected);
                 }
@@ -122,7 +123,7 @@ namespace DetectQRCode.OCR.Utils
 
                 // Gaussian blur
                 using Mat blurred = new Mat();
-                Cv2.GaussianBlur(src, blurred, new Size(0, 0), 1.0);
+                Cv2.GaussianBlur(src, blurred, new CvSize(0, 0), 1.0);
 
                 // Unsharp mask: original + amount * (original - blurred)
                 using Mat sharpened = new Mat();
@@ -214,7 +215,7 @@ namespace DetectQRCode.OCR.Utils
 
                 using Mat rotated = new Mat();
                 Cv2.WarpAffine(src, rotated, rotationMatrix, 
-                    new Size(newWidth, newHeight), 
+                    new CvSize(newWidth, newHeight), 
                     InterpolationFlags.Cubic, 
                     BorderTypes.Constant, 
                     Scalar.White);
@@ -245,7 +246,7 @@ namespace DetectQRCode.OCR.Utils
 
                 // Upscale
                 using Mat upscaled = new Mat();
-                Cv2.Resize(src, upscaled, new Size(), scaleFactor, scaleFactor, 
+                Cv2.Resize(src, upscaled, new CvSize(), scaleFactor, scaleFactor, 
                     InterpolationFlags.Cubic);
 
                 // Denoise nhẹ sau khi upscale
@@ -286,7 +287,7 @@ namespace DetectQRCode.OCR.Utils
                 // Apply CLAHE to L channel
                 using var clahe = Cv2.CreateCLAHE(
                     clipLimit: clipLimit, 
-                    tileGridSize: new Size(8, 8)
+                    tileGridSize: new CvSize(8, 8)
                 );
                 clahe.Apply(channels[0], channels[0]);
 
