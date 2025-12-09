@@ -23,8 +23,8 @@ namespace DetectQRCode.OCR.Utils
                 var bmpFull = MatToBitmap(frame);
                 var roiResult = GetGuideBoxRoi(bmpFull, cameraBox.GuideBox, cameraBox);
                 var roi = roiResult.Image;
-                // var mapped = roiResult.Mapped;
-                // var result = new DetectInfo();
+                var mapped = roiResult.Mapped;
+                var result = new DetectInfo();
 
                 if (roi == null)
                 {
@@ -46,170 +46,170 @@ namespace DetectQRCode.OCR.Utils
                     // Gi?i phóng b?n g?c sau khi dã clone cho UI
                     bmpFull.Dispose();
                 }
-                if (roi != null)
+                // if (roi != null)
+                // {
+                //     // 1. Tăng sáng (nhà xưởng thường tối)
+                //     roi = ImageEnhancer.EnhanceDark(roi, clipLimit: 2.5);
+    
+                //     // 2. Làm sắc nét (cải thiện OCR)
+                //     roi = ImageEnhancer.SharpenBlurry(roi);
+    
+                //     // 3. Upscale nếu cần
+                //     if (Math.Min(roi.Width, roi.Height) < 400)
+                //     {
+                //         roi = ImageEnhancer.UpscaleSmall(roi, 2.0);
+                //     }
+
+                //     // roi = ImageEnhancer.EnhanceDark(roi);      // Ảnh tối
+                //     // roi = ImageEnhancer.SharpenBlurry(roi);    // Ảnh mờ
+                //     // roi = ImageEnhancer.CorrectSkew(roi);      // Ảnh nghiêng
+                //     // roi = ImageEnhancer.UpscaleSmall(roi, 2.0); // Ảnh nhỏ
+                //     // roi = ImageEnhancer.CorrectDistortion(roi); // Ảnh cong
+                // }
+                try
                 {
-                    // 1. Tăng sáng (nhà xưởng thường tối)
-                    roi = ImageEnhancer.EnhanceDark(roi, clipLimit: 2.5);
-    
-                    // 2. Làm sắc nét (cải thiện OCR)
-                    roi = ImageEnhancer.SharpenBlurry(roi);
-    
-                    // 3. Upscale nếu cần
-                    if (Math.Min(roi.Width, roi.Height) < 400)
+                    using var mat = frame.Clone();
+                    
+                    // Hiển thị ROI lên picPreprocessed
+                    if (roi != null && picPreprocessed != null)
                     {
-                        roi = ImageEnhancer.UpscaleSmall(roi, 2.0);
+                        picPreprocessed.BeginInvoke(new Action(() =>
+                        {
+                            try
+                            {
+                                var old = picPreprocessed.Image;
+                                picPreprocessed.Image = (Bitmap)roi.Clone();
+                                old?.Dispose();
+                            }
+                            catch (Exception ex)
+                            {
+                                Debug.WriteLine($"[⚠ DISPLAY ROI ERROR] {ex.Message}");
+                            }
+                        }));
                     }
 
-                    // roi = ImageEnhancer.EnhanceDark(roi);      // Ảnh tối
-                    // roi = ImageEnhancer.SharpenBlurry(roi);    // Ảnh mờ
-                    // roi = ImageEnhancer.CorrectSkew(roi);      // Ảnh nghiêng
-                    // roi = ImageEnhancer.UpscaleSmall(roi, 2.0); // Ảnh nhỏ
-                    // roi = ImageEnhancer.CorrectDistortion(roi); // Ảnh cong
-                }
-                // try
-                // {
-                //     using var mat = frame.Clone();
-                    
-                //     // Hiển thị ROI lên picPreprocessed
-                //     if (roi != null && picPreprocessed != null)
-                //     {
-                //         picPreprocessed.BeginInvoke(new Action(() =>
-                //         {
-                //             try
-                //             {
-                //                 var old = picPreprocessed.Image;
-                //                 picPreprocessed.Image = (Bitmap)roi.Clone();
-                //                 old?.Dispose();
-                //             }
-                //             catch (Exception ex)
-                //             {
-                //                 Debug.WriteLine($"[⚠ DISPLAY ROI ERROR] {ex.Message}");
-                //             }
-                //         }));
-                //     }
+                    var (qrPoints, qrText) = LabelDetector.DetectQRCode(roi);// LabelDetectorZXing.DetectQRCodeZXing(roi); //LabelDetector.DetectQRCode(roi);
+                    //var (qrPoints1, qrText1) = LabelDetector.DetectQRCode(roi);
+                    //var a = qrPoints;
+                    //var b = qrPoints1;
+                    result.QRCode = qrText;
 
-                //     var (qrPoints, qrText) = LabelDetector.DetectQRCode(roi);// LabelDetectorZXing.DetectQRCodeZXing(roi); //LabelDetector.DetectQRCode(roi);
-                //     //var (qrPoints1, qrText1) = LabelDetector.DetectQRCode(roi);
-                //     //var a = qrPoints;
-                //     //var b = qrPoints1;
-                //     result.QRCode = qrText;
+                    if (qrPoints != null)
+                    {
+                        var (rect, rectPoints, debugBmp1, rectInGuildlBox) = LabelDetector.DetectLabelRegionWithQrCode(roi, qrPoints);
 
-                //     if (qrPoints != null)
-                //     {
-                //         var (rect, rectPoints, debugBmp1, rectInGuildlBox) = LabelDetector.DetectLabelRegionWithQrCode(roi, qrPoints);
+                        if (rectPoints != null && rectInGuildlBox)
+                        {
+                            var qrBox = qrPoints.Select(p =>
+                                   new OpenCvSharp.Point(p.X + mapped.X, p.Y + mapped.Y)
+                               ).ToArray();
 
-                //         if (rectPoints != null && rectInGuildlBox)
-                //         {
-                //             var qrBox = qrPoints.Select(p =>
-                //                    new OpenCvSharp.Point(p.X + mapped.X, p.Y + mapped.Y)
-                //                ).ToArray();
+                            var qrRectangle = rectPoints.Select(p =>
+                                   new OpenCvSharp.Point(p.X + mapped.X, p.Y + mapped.Y)
+                               ).ToArray();
 
-                //             var qrRectangle = rectPoints.Select(p =>
-                //                    new OpenCvSharp.Point(p.X + mapped.X, p.Y + mapped.Y)
-                //                ).ToArray();
+                            Cv2.Polylines(mat, new[] { qrBox }, true, Scalar.Lime, 2);
+                            Cv2.Polylines(mat, new[] { qrRectangle }, true, Scalar.Lime, 2);
 
-                //             Cv2.Polylines(mat, new[] { qrBox }, true, Scalar.Lime, 2);
-                //             Cv2.Polylines(mat, new[] { qrRectangle }, true, Scalar.Lime, 2);
-
-                //             var debugBmp = MatToBitmap(mat);
+                            var debugBmp = MatToBitmap(mat);
 
 
-                //             // Hi?n th? ?nh ra li?n
-                //             cameraBox.BeginInvoke(new Action(() =>
-                //             {
-                //                 var old = cameraBox.Image;
-                //                 cameraBox.Image = (Bitmap)debugBmp.Clone();
-                //                 cameraBox.IsObjectDetected = true;
-                //                 old?.Dispose();
-                //             }));
+                            // Hi?n th? ?nh ra li?n
+                            cameraBox.BeginInvoke(new Action(() =>
+                            {
+                                var old = cameraBox.Image;
+                                cameraBox.Image = (Bitmap)debugBmp.Clone();
+                                cameraBox.IsObjectDetected = true;
+                                old?.Dispose();
+                            }));
 
-                //             var (alignedLabel, qrBoxScale) = LabelDetector.CropAndAlignLabel(roi, rect.Value, rectPoints, rectPoints, qrPoints);
+                            var (alignedLabel, qrBoxScale) = LabelDetector.CropAndAlignLabel(roi, rect.Value, rectPoints, rectPoints, qrPoints);
 
-                //             if (alignedLabel != null)
-                //             {
-                //                 var mergedCrop = CropComponent.CropAndMergeBottomLeftAndAboveQr(alignedLabel, qrBoxScale);
-                //                 if (mergedCrop != null)
-                //                 {
-                //                     var (ocrTexts, minScore, debugText) = ExtractTextsFromMergedCrop(ocr, mergedCrop);
-                //                     mergedCrop.Dispose();
-                //                     alignedLabel.Dispose();
-                //                     roi.Dispose();
-                //                     bmpFull.Dispose();
-                //                     result.ProductTotal = ocrTexts[0];
-                //                     result.ProductCode = ocrTexts[1];
-                //                     result.Size = ocrTexts[3];
-                //                     result.Color = ocrTexts[2];
-                //                 }
-                //                 alignedLabel.Dispose();
-                //             }
-                //             roi.Dispose();
-                //             bmpFull.Dispose();
-                //         }
-                //         else
-                //         {
-                //             cameraBox.BeginInvoke(new Action(() =>
-                //             {
-                //                 cameraBox.IsObjectDetected = false;
-                //                 cameraBox.Invalidate();
+                            if (alignedLabel != null)
+                            {
+                                var mergedCrop = CropComponent.CropAndMergeBottomLeftAndAboveQr(alignedLabel, qrBoxScale);
+                                if (mergedCrop != null)
+                                {
+                                    var (ocrTexts, minScore, debugText) = ExtractTextsFromMergedCrop(ocr, mergedCrop);
+                                    mergedCrop.Dispose();
+                                    alignedLabel.Dispose();
+                                    roi.Dispose();
+                                    bmpFull.Dispose();
+                                    result.ProductTotal = ocrTexts[0];
+                                    result.ProductCode = ocrTexts[1];
+                                    result.Size = ocrTexts[3];
+                                    result.Color = ocrTexts[2];
+                                }
+                                alignedLabel.Dispose();
+                            }
+                            roi.Dispose();
+                            bmpFull.Dispose();
+                        }
+                        else
+                        {
+                            cameraBox.BeginInvoke(new Action(() =>
+                            {
+                                cameraBox.IsObjectDetected = false;
+                                cameraBox.Invalidate();
 
-                //             }));
+                            }));
 
-                //             var qrBox = qrPoints.Select(p =>
-                //                    new OpenCvSharp.Point(p.X + mapped.X, p.Y + mapped.Y)
-                //                ).ToArray();
+                            var qrBox = qrPoints.Select(p =>
+                                   new OpenCvSharp.Point(p.X + mapped.X, p.Y + mapped.Y)
+                               ).ToArray();
 
-                //             // chuy?n t?a d? hình ch? nh?t quanh Label -> t?a d? full ?nh
-                //             var qrRectangle = rectPoints.Select(p =>
-                //                 new OpenCvSharp.Point(p.X + mapped.X, p.Y + mapped.Y)
-                //             ).ToArray();
+                            // chuy?n t?a d? hình ch? nh?t quanh Label -> t?a d? full ?nh
+                            var qrRectangle = rectPoints.Select(p =>
+                                new OpenCvSharp.Point(p.X + mapped.X, p.Y + mapped.Y)
+                            ).ToArray();
 
-                //             // 3?? V? khung label và tâm trên frame full
-                //             Cv2.Polylines(mat, new[] { qrBox }, true, Scalar.Lime, 2);
+                            // 3?? V? khung label và tâm trên frame full
+                            Cv2.Polylines(mat, new[] { qrBox }, true, Scalar.Lime, 2);
 
-                //             // 3?? V? khung HCN lên frame full
-                //             Cv2.Polylines(mat, new[] { qrRectangle }, true, Scalar.Red, 2);
+                            // 3?? V? khung HCN lên frame full
+                            Cv2.Polylines(mat, new[] { qrRectangle }, true, Scalar.Red, 2);
 
-                //             roi.Dispose();
-                //             bmpFull.Dispose();
-                //         }
-                //         /*var debugBmp = MatToBitmap(mat);
-                //         cameraBox.BeginInvoke(new Action(() =>
-                //         {
-                //             var old = cameraBox.Image;
-                //             cameraBox.Image = (Bitmap)debugBmp.Clone();
-                //             cameraBox.IsObjectDetected = true;
-                //             old?.Dispose();
-                //         }));
-                //         roi.Dispose();
-                //         bmpFull.Dispose();*/
-                //     }
-                //     else
-                //     {
-                //         cameraBox.BeginInvoke(new Action(() =>
-                //         {
-                //             cameraBox.IsObjectDetected = false;  // ?? tr? l?i khung d?
-                //             cameraBox.Invalidate();
-                //         }));
-                //         Debug.WriteLine("Không phát hi?n du?c QR trong Guild Box!");
-                //         if (roi != null)
-                //         {
-                //             roi.Dispose();
-                //         }
-                //         if (bmpFull != null)
-                //         {
-                //             bmpFull.Dispose();
-                //         }
+                            roi.Dispose();
+                            bmpFull.Dispose();
+                        }
+                        /*var debugBmp = MatToBitmap(mat);
+                        cameraBox.BeginInvoke(new Action(() =>
+                        {
+                            var old = cameraBox.Image;
+                            cameraBox.Image = (Bitmap)debugBmp.Clone();
+                            cameraBox.IsObjectDetected = true;
+                            old?.Dispose();
+                        }));
+                        roi.Dispose();
+                        bmpFull.Dispose();*/
+                    }
+                    else
+                    {
+                        cameraBox.BeginInvoke(new Action(() =>
+                        {
+                            cameraBox.IsObjectDetected = false;  // ?? tr? l?i khung d?
+                            cameraBox.Invalidate();
+                        }));
+                        Debug.WriteLine("Không phát hi?n du?c QR trong Guild Box!");
+                        if (roi != null)
+                        {
+                            roi.Dispose();
+                        }
+                        if (bmpFull != null)
+                        {
+                            bmpFull.Dispose();
+                        }
                        
-                //     }
-                //     return result;
-                // }
-                // catch (Exception ex)
-                // {
-                //     // X? lý l?i n?u c?n
-                //     roi?.Dispose();
-                //     bmpFull?.Dispose();
-                //     return null;
-                // }
+                    }
+                    return result;
+                }
+                catch (Exception ex)
+                {
+                    // X? lý l?i n?u c?n
+                    roi?.Dispose();
+                    bmpFull?.Dispose();
+                    return null;
+                }
             }
             catch (Exception ex)
             {
