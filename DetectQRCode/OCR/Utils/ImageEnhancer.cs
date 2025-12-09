@@ -1,9 +1,13 @@
 using OpenCvSharp;
 using System;
+using System.Collections.Generic;
+using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
+using System.Linq;
 using CvSize = OpenCvSharp.Size;
+using CvPoint = OpenCvSharp.Point;
 
 namespace DetectQRCode.OCR.Utils
 {
@@ -30,34 +34,47 @@ namespace DetectQRCode.OCR.Utils
                 using Mat gray = new Mat();
                 Cv2.CvtColor(src, gray, ColorConversionCodes.BGR2GRAY);
 
+                // Tăng contrast trước
+                using Mat enhanced = new Mat();
+                Cv2.EqualizeHist(gray, enhanced);
+
                 // Tìm edges
                 using Mat edges = new Mat();
-                Cv2.Canny(gray, edges, 50, 150);
+                Cv2.Canny(enhanced, edges, 30, 100);
+
+                // Dilate để kết nối các edges gần nhau
+                using Mat kernel = Cv2.GetStructuringElement(MorphShapes.Rect, new CvSize(3, 3));
+                using Mat dilated = new Mat();
+                Cv2.Dilate(edges, dilated, kernel);
 
                 // Tìm contours
-                Cv2.FindContours(edges, out var contours, out _, 
+                Cv2.FindContours(dilated, out var contours, out _, 
                     RetrievalModes.External, ContourApproximationModes.ApproxSimple);
 
                 if (contours.Length == 0)
                     return (Bitmap)input.Clone();
 
-                // Tìm contour lớn nhất
-                var largestContour = contours[0];
-                double maxArea = Cv2.ContourArea(largestContour);
-                
+                // Tìm contour lớn nhất có diện tích > 20% ảnh
+                double minArea = src.Width * src.Height * 0.2;
+                CvPoint[]? bestContour = null;
+                double maxArea = 0;
+
                 foreach (var contour in contours)
                 {
                     double area = Cv2.ContourArea(contour);
-                    if (area > maxArea)
+                    if (area > minArea && area > maxArea)
                     {
                         maxArea = area;
-                        largestContour = contour;
+                        bestContour = contour;
                     }
                 }
 
-                // Approximate polygon
-                var epsilon = 0.02 * Cv2.ArcLength(largestContour, true);
-                var approx = Cv2.ApproxPolyDP(largestContour, epsilon, true);
+                if (bestContour == null)
+                    return (Bitmap)input.Clone();
+
+                // Approximate polygon với epsilon nhỏ hơn
+                var epsilon = 0.01 * Cv2.ArcLength(bestContour, true);
+                var approx = Cv2.ApproxPolyDP(bestContour, epsilon, true);
 
                 // Nếu có 4 điểm, thực hiện perspective transform
                 if (approx.Length == 4)
@@ -94,13 +111,15 @@ namespace DetectQRCode.OCR.Utils
                     Cv2.WarpPerspective(src, corrected, transform, 
                         new CvSize((int)width, (int)height));
 
+                    Debug.WriteLine($"[CorrectDistortion] Applied perspective transform");
                     return MatToBitmap(corrected);
                 }
 
                 return (Bitmap)input.Clone();
             }
-            catch
+            catch (Exception ex)
             {
+                Debug.WriteLine($"[CorrectDistortion] Error: {ex.Message}");
                 return (Bitmap)input.Clone();
             }
         }
@@ -156,52 +175,50 @@ namespace DetectQRCode.OCR.Utils
                 using Mat gray = new Mat();
                 Cv2.CvtColor(src, gray, ColorConversionCodes.BGR2GRAY);
 
-                // Threshold
-                using Mat binary = new Mat();
-                Cv2.Threshold(gray, binary, 0, 255, 
-                    ThresholdTypes.Binary | ThresholdTypes.Otsu);
+                // Edge detection
+                using Mat edges = new Mat();
+                Cv2.Canny(gray, edges, 50, 150, 3);
 
-                // Tìm contours
-                Cv2.FindContours(binary, out var contours, out _, 
-                    RetrievalModes.List, ContourApproximationModes.ApproxSimple);
+                // Hough Line Transform để tìm các đường thẳng
+                var lines = Cv2.HoughLinesP(edges, 1, Math.PI / 180, 100, 100, 10);
 
-                if (contours.Length == 0)
+                if (lines == null || lines.Length == 0)
                     return (Bitmap)input.Clone();
 
-                // Tìm contour lớn nhất
-                var largestContour = contours[0];
-                double maxArea = Cv2.ContourArea(largestContour);
-                
-                foreach (var contour in contours)
+                // Tính góc của các đường thẳng
+                var angles = new List<double>();
+                foreach (var line in lines)
                 {
-                    double area = Cv2.ContourArea(contour);
-                    if (area > maxArea)
-                    {
-                        maxArea = area;
-                        largestContour = contour;
-                    }
+                    double angle = Math.Atan2(line.P2.Y - line.P1.Y, line.P2.X - line.P1.X) * 180.0 / Math.PI;
+                    
+                    // Normalize angle to [-45, 45]
+                    while (angle < -45) angle += 90;
+                    while (angle > 45) angle -= 90;
+                    
+                    // Chỉ lấy các góc gần horizontal hoặc vertical
+                    if (Math.Abs(angle) < 45)
+                        angles.Add(angle);
                 }
 
-                // Tính góc nghiêng
-                var rect = Cv2.MinAreaRect(largestContour);
-                double angle = rect.Angle;
+                if (angles.Count == 0)
+                    return (Bitmap)input.Clone();
 
-                // Điều chỉnh angle
-                if (angle < -45)
-                    angle += 90;
-                else if (angle > 45)
-                    angle -= 90;
+                // Lấy median angle (robust hơn mean)
+                angles.Sort();
+                double medianAngle = angles[angles.Count / 2];
 
                 // Nếu góc quá nhỏ, không cần xoay
-                if (Math.Abs(angle) < 0.5)
+                if (Math.Abs(medianAngle) < 0.5)
                     return (Bitmap)input.Clone();
+
+                Debug.WriteLine($"[CorrectSkew] Detected angle: {medianAngle:F2}°");
 
                 // Xoay ảnh
                 var center = new Point2f(src.Width / 2f, src.Height / 2f);
-                using Mat rotationMatrix = Cv2.GetRotationMatrix2D(center, -angle, 1.0);
+                using Mat rotationMatrix = Cv2.GetRotationMatrix2D(center, -medianAngle, 1.0);
 
                 // Tính kích thước mới
-                double radians = Math.Abs(angle) * Math.PI / 180.0;
+                double radians = Math.Abs(medianAngle) * Math.PI / 180.0;
                 int newWidth = (int)(src.Height * Math.Abs(Math.Sin(radians)) + 
                                      src.Width * Math.Abs(Math.Cos(radians)));
                 int newHeight = (int)(src.Height * Math.Abs(Math.Cos(radians)) + 
