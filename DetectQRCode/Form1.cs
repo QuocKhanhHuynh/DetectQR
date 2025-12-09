@@ -27,6 +27,9 @@ namespace DetectQRCode
         // OCR components
         private PaddleOCREngine? _ocrEngine;
         
+        // YOLO11 detector
+        private Yolo11Seg? _yoloDetector;
+        
         // Mode: Camera or Import
         private bool _isCameraMode = true;
 
@@ -203,8 +206,14 @@ namespace DetectQRCode
                                 using var mat = BitmapToMat(frameToProcess);
                                 if (mat != null)
                                 {
-                                    // Gọi DetectLabel - hàm này sẽ tự update Image trong picCamera
-                                    var result = DetectLabelFromImage.DetectLabel(mat, _ocrEngine, 180, picCamera, picPreprocessed);
+                                    // Initialize YOLO detector (lazy loading)
+                                    if (_yoloDetector == null)
+                                    {
+                                        _yoloDetector = InitializeYoloDetector();
+                                    }
+
+                                    // Gọi DetectLabel V2 với YOLO detector
+                                    var result = DetectLabelFromImageV2.DetectLabel(mat, _yoloDetector, _ocrEngine, 180, picCamera, picPreprocessed);
                                     
                                     if (result != null && result.QRCode != null)
                                     {
@@ -257,6 +266,43 @@ namespace DetectQRCode
                 {
                     UpdateStatus($"OCR Engine initialization failed: {ex.Message}", Color.Red);
                 }));
+                return null;
+            }
+        }
+
+        private Yolo11Seg? InitializeYoloDetector()
+        {
+            try
+            {
+                // Cấu hình đường dẫn model và class names
+                string modelPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "models", "yolo11n.onnx");
+                string[] classNames = new[] { "label" };
+
+                if (!System.IO.File.Exists(modelPath))
+                {
+                    Debug.WriteLine($"[⚠] YOLO model not found: {modelPath}");
+                    Debug.WriteLine("[ℹ] Using fallback detection method (original DetectLabelFromImage)");
+                    return null;
+                }
+
+                var detector = new Yolo11Seg(
+                    modelPath,
+                    classNames,
+                    confThreshold: 0.5f,
+                    iouThreshold: 0.45f
+                );
+
+                Debug.WriteLine("[✓] YOLO11 Detector initialized successfully!");
+                this.BeginInvoke(new Action(() =>
+                {
+                    UpdateStatus("YOLO11 Detector loaded!", Color.Green);
+                }));
+
+                return detector;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[⚠] Failed to initialize YOLO: {ex.Message}");
                 return null;
             }
         }
@@ -474,7 +520,14 @@ namespace DetectQRCode
                             using var mat = BitmapToMat(ocrBitmap);
                             if (mat != null)
                             {
-                                var result = DetectLabelFromImage.DetectLabel(mat, _ocrEngine, 180, picCamera, picPreprocessed);
+                                // Initialize YOLO detector (lazy loading)
+                                if (_yoloDetector == null)
+                                {
+                                    _yoloDetector = InitializeYoloDetector();
+                                }
+
+                                // Gọi DetectLabel V2 với YOLO detector
+                                var result = DetectLabelFromImageV2.DetectLabel(mat, _yoloDetector, _ocrEngine, 180, picCamera, picPreprocessed);
                                 
                                 if (result != null && result.QRCode != null)
                                 {
@@ -572,6 +625,7 @@ namespace DetectQRCode
             }
 
             _ocrEngine?.Dispose();
+            _yoloDetector?.Dispose();
         }
     }
 }

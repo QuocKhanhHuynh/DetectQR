@@ -20,7 +20,22 @@ namespace DetectQRCode.OCR.Utils
             try
             {
                
-                var bmpFull = MatToBitmap(frame);
+                /*var bmpFull = MatToBitmap(frame);
+
+                cameraBox.BeginInvoke(new Action(() =>
+                {
+                    try
+                    {
+                        var old = cameraBox.Image;
+                        // CLONE d? tránh GDI+ "Object is currently in use elsewhere"
+                        cameraBox.Image = (Bitmap)bmpFull.Clone();
+                        old?.Dispose();
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"[? DISPLAY FRAME ERROR] {ex.Message}");
+                    }
+                }));
                 var roiResult = GetGuideBoxRoi(bmpFull, cameraBox.GuideBox, cameraBox);
                 var roi = roiResult.Image;
                 var mapped = roiResult.Mapped;
@@ -153,7 +168,7 @@ namespace DetectQRCode.OCR.Utils
                             roi.Dispose();
                             bmpFull.Dispose();
                         }
-                        /*var debugBmp = MatToBitmap(mat);
+                        var debugBmp = MatToBitmap(mat);
                         cameraBox.BeginInvoke(new Action(() =>
                         {
                             var old = cameraBox.Image;
@@ -162,7 +177,7 @@ namespace DetectQRCode.OCR.Utils
                             old?.Dispose();
                         }));
                         roi.Dispose();
-                        bmpFull.Dispose();*/
+                        bmpFull.Dispose();
                     }
                     else
                     {
@@ -190,7 +205,8 @@ namespace DetectQRCode.OCR.Utils
                     roi?.Dispose();
                     bmpFull?.Dispose();
                     return null;
-                }
+                }*/
+                return null;
             }
             catch (Exception ex)
             {
