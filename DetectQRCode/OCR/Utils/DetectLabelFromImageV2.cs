@@ -109,20 +109,100 @@ namespace DetectQRCode.OCR.Utils
                     var bbox = labelDetection.BoundingBox;
 
                     using var croppedMat = new Mat(frame, bbox);
+                    
+                    // Convert Mat to Bitmap for ImageEnhancer
+                    var croppedBmp = MatToBitmap(croppedMat);
+                    
+                    // ============================================
+                    // 🎨 IMAGE ENHANCEMENT PIPELINE
+                    // ============================================
+                    Debug.WriteLine($"[ENHANCEMENT] Starting pipeline for bbox: {bbox}");
+                    var sw = System.Diagnostics.Stopwatch.StartNew();
+                    
+                    try
+                    {
+                        var enhanced = croppedBmp;  // Start with original
+                        Debug.WriteLine($"[ENHANCEMENT] Original size: {enhanced.Width}x{enhanced.Height}");
 
-                    // ✅ Áp dụng Unsharp Mask để làm sắc nét ảnh
-                    using var sharpenedMat = ApplyUnsharpMask(croppedMat, amount: 1.5, radius: 2, threshold: 0);
+                        // 1️⃣ Tăng sáng (nhà xưởng thường tối)
+                        var brightened = ImageEnhancer.EnhanceDark(enhanced, clipLimit: 2.5);
+                        if (enhanced != croppedBmp) enhanced.Dispose();
+                        enhanced = brightened;
+                        Debug.WriteLine($"[ENHANCEMENT] ✓ EnhanceDark completed");
 
-                    var croppedBmp = MatToBitmap(sharpenedMat);  // ✅ Không dùng 'using' - để PictureBox sở hữu
-                    var (qrPoints, qrText) = LabelDetectorZXing.DetectQRCodeZXing(croppedBmp); //LabelDetector.DetectQRCode(roi);
+                        // 2️⃣ Làm sắc nét (cải thiện QR detection)
+                        var sharpened = ImageEnhancer.SharpenBlurry(enhanced);
+                        if (enhanced != croppedBmp) enhanced.Dispose();
+                        enhanced = sharpened;
+                        Debug.WriteLine($"[ENHANCEMENT] ✓ SharpenBlurry completed");
+
+                        // 3️⃣ Upscale nếu ảnh quá nhỏ
+                        int minDim = Math.Min(enhanced.Width, enhanced.Height);
+                        if (minDim < 400)
+                        {
+                            var upscaled = ImageEnhancer.UpscaleSmall(enhanced, 2.0);
+                            if (enhanced != croppedBmp) enhanced.Dispose();
+                            enhanced = upscaled;
+                            Debug.WriteLine($"[ENHANCEMENT] ✓ UpscaleSmall completed: {enhanced.Width}x{enhanced.Height}");
+                        }
+                        else
+                        {
+                            Debug.WriteLine($"[ENHANCEMENT] ⊘ UpscaleSmall skipped (size ok)");
+                        }
+
+                        /*// 4️⃣ Sửa ảnh cong (Distortion Correction)
+                        var straightened = ImageEnhancer.CorrectDistortion(enhanced);
+                        if (enhanced != croppedBmp) enhanced.Dispose();
+                        enhanced = straightened;
+                        Debug.WriteLine($"[ENHANCEMENT] ✓ CorrectDistortion completed");
+
+                        // 5️⃣ Sửa ảnh nghiêng (Deskewing)
+                        var deskewed = ImageEnhancer.CorrectSkew(enhanced);
+                        if (enhanced != croppedBmp) enhanced.Dispose();
+                        enhanced = deskewed;
+                        Debug.WriteLine($"[ENHANCEMENT] ✓ CorrectSkew completed");*/
+
+
+                        // Dispose original cropped bitmap nếu đã enhance
+                        if (enhanced != croppedBmp)
+                        {
+                            croppedBmp.Dispose();
+                            croppedBmp = enhanced;  // Use enhanced version
+                        }
+                        
+                        sw.Stop();
+                        Debug.WriteLine($"[ENHANCEMENT] ✅ Pipeline completed in {sw.ElapsedMilliseconds}ms");
+                    }
+                    catch (Exception ex)
+                    {
+                        sw.Stop();
+                        Debug.WriteLine($"[⚠ IMAGE ENHANCEMENT ERROR] {ex.Message}");
+                        Debug.WriteLine($"[ENHANCEMENT] ⚠️ Using original image (fallback)");
+                        // Continue with original cropped bitmap
+                    }
+
+                    // ============================================
+                    // 🔍 QR DETECTION (AFTER ENHANCEMENT)
+                    // ============================================
+                    Debug.WriteLine($"[QR DETECTION] Starting detection on enhanced image...");
+                    var qrSw = System.Diagnostics.Stopwatch.StartNew();
+                    
+                    var (qrPoints, qrText) = LabelDetectorZXing.DetectQRCodeZXing(croppedBmp);
                     result.QRCode = qrText;
+                    
+                    qrSw.Stop();
+                    Debug.WriteLine($"[QR DETECTION] Completed in {qrSw.ElapsedMilliseconds}ms - Result: {qrText ?? "NOT FOUND"}");
 
+
+                    // ============================================
+                    // 🖼️ DISPLAY PREPROCESSED IMAGE
+                    // ============================================
                     picPreprocessed.BeginInvoke(new Action(() =>
                     {
                         try
                         {
                             var old = picPreprocessed.Image;
-                            picPreprocessed.Image = croppedBmp;  // ✅ Bitmap vẫn còn sống
+                            picPreprocessed.Image = croppedBmp;  // PictureBox owns bitmap now
                             old?.Dispose();
                         }
                         catch (Exception ex)
