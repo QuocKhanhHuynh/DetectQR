@@ -385,6 +385,23 @@ namespace DetectQRCode.OCR.Utils
 
         #endregion
 
+        #region 6. XỬ LÝ XOAY LABEL 
+
+        /// <summary>
+        /// Xoay label về đúng trục XY dựa vào QR code
+        /// Input: Bitmap label đã crop
+        /// Output: Bitmap đã được xoay thẳng
+        /// Thời gian: ~10-15ms
+        /// </summary>
+        /// <param name="labelBitmap">Bitmap của label đã crop</param>
+        /// <returns>Bitmap đã xoay thẳng, null nếu không thể xoay</returns>
+        public static Bitmap CorrectSkew(Bitmap labelBitmap)
+        {
+            
+        }
+
+        #endregion
+
         #region Helper Methods
 
         /// <summary>
