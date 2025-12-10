@@ -30,7 +30,6 @@ DisableProgramGroupPage=yes
 ; Output Configuration
 OutputDir=installer
 OutputBaseFilename=DetectQRCode_Setup_{#MyAppVersion}
-SetupIconFile=DetectQRCode\icon.ico
 UninstallDisplayIcon={app}\{#MyAppExeName}
 
 ; Compression
@@ -52,12 +51,9 @@ WizardSizePercent=120,100
 
 ; Misc
 DisableWelcomePage=no
-LicenseFile=LICENSE.txt
-InfoBeforeFile=README.txt
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
-Name: "vietnamese"; MessagesFile: "compiler:Languages\Vietnamese.isl"
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
