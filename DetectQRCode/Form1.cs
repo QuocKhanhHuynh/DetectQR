@@ -207,14 +207,16 @@ namespace DetectQRCode
                                 if (mat != null)
                                 {
                                     // Initialize YOLO detector (lazy loading)
-                                    if (_yoloDetector == null)
+                                    /*if (_yoloDetector == null)
                                     {
                                         _yoloDetector = InitializeYoloDetector();
                                     }
 
                                     // Gọi DetectLabel V2 với YOLO detector
-                                    var result = DetectLabelFromImageV2.DetectLabel(mat, _yoloDetector, _ocrEngine, 180, picCamera, picPreprocessed);
-                                    
+                                    var result = DetectLabelFromImageV2.DetectLabel(mat, _yoloDetector, _ocrEngine, 180, picCamera, picPreprocessed);*/
+                                    var result = DetectLabelFromImage.DetectLabel(mat, _ocrEngine, 180, picCamera, picPreprocessed);
+
+
                                     if (result != null && result.QRCode != null)
                                     {
                                         this.BeginInvoke(new Action(() =>
@@ -521,14 +523,15 @@ namespace DetectQRCode
                             if (mat != null)
                             {
                                 // Initialize YOLO detector (lazy loading)
-                                if (_yoloDetector == null)
-                                {
-                                    _yoloDetector = InitializeYoloDetector();
-                                }
+                                //if (_yoloDetector == null)
+                                //{
+                                //    _yoloDetector = InitializeYoloDetector();
+                                //}
 
                                 // Gọi DetectLabel V2 với YOLO detector
-                                var result = DetectLabelFromImageV2.DetectLabel(mat, _yoloDetector, _ocrEngine, 180, picCamera, picPreprocessed);
-                                
+                                //var result = DetectLabelFromImageV2.DetectLabel(mat, _yoloDetector, _ocrEngine, 180, picCamera, picPreprocessed);
+                                var result = DetectLabelFromImage.DetectLabel(mat, _ocrEngine, 180, picCamera, picPreprocessed);
+
                                 if (result != null && result.QRCode != null)
                                 {
                                     this.BeginInvoke(new Action(() =>
