@@ -181,6 +181,8 @@ namespace DetectQRCode.OCR.Utils
 
 
 
+
+
         /// <summary>
         /// Xoay và c?t label theo t?a d? rect trong ROI.
         /// Nh?n vào: ROI bitmap, rect, box, qrPoints ? tr? v? ?nh label dã xoay th?ng.

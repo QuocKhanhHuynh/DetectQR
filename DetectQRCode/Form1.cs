@@ -4,6 +4,7 @@ using DetectQRCode.Models.Camera;
 using DetectQRCode.OCR.Utils;
 using OpenCvSharp;
 using PaddleOCRSharp;
+using Sdcb.RotationDetector;
 using System;
 using System.Diagnostics;
 using System.Drawing;
@@ -29,9 +30,11 @@ namespace DetectQRCode
         
         // YOLO11 detector
         private Yolo11Seg? _yoloDetector;
-        
-        // Mode: Camera or Import
-        private bool _isCameraMode = true;
+
+        private PaddleRotationDetector _rotatioDetector;
+
+    // Mode: Camera or Import
+    private bool _isCameraMode = true;
 
         // FPS tracking
         private int _frameCount = 0;
@@ -211,9 +214,13 @@ namespace DetectQRCode
                                     {
                                         _yoloDetector = InitializeYoloDetector();
                                     }
+                                    if (_rotatioDetector == null)
+                                    {
+                                        _rotatioDetector = InitializeRotationDetector();
+                                    }
 
                                     // Gọi DetectLabel V2 với YOLO detector
-                                    var result = DetectLabelFromImageV2.DetectLabel(mat, _yoloDetector, _ocrEngine, 180, picCamera, picPreprocessed);
+                                    var result = DetectLabelFromImageV2.DetectLabel(mat, _yoloDetector, _ocrEngine, _rotatioDetector, 180, picCamera, picPreprocessed);
                                     //var result = DetectLabelFromImage.DetectLabel(mat, _ocrEngine, 180, picCamera, picPreprocessed);
 
 
@@ -260,6 +267,8 @@ namespace DetectQRCode
             try
             {
                 // Sử dụng default constructor - PaddleOCRSharp sẽ tự tìm models
+                var parameter = new PaddleOCRParams();
+                parameter.use_angle_cls = true;
                 return new PaddleOCREngine();
             }
             catch (Exception ex)
@@ -268,6 +277,19 @@ namespace DetectQRCode
                 {
                     UpdateStatus($"OCR Engine initialization failed: {ex.Message}", Color.Red);
                 }));
+                return null;
+            }
+        }
+
+        private PaddleRotationDetector? InitializeRotationDetector()
+        {
+            try
+            {
+                return new PaddleRotationDetector(RotationDetectionModel.EmbeddedDefault);
+            }
+            catch (Exception ex)
+            {
+            
                 return null;
             }
         }
@@ -528,8 +550,13 @@ namespace DetectQRCode
                                     _yoloDetector = InitializeYoloDetector();
                                 }
 
+                                if (_rotatioDetector == null)
+                                {
+                                    _rotatioDetector = InitializeRotationDetector();
+                                }
+
                                 // Gọi DetectLabel V2 với YOLO detector
-                                var result = DetectLabelFromImageV2.DetectLabel(mat, _yoloDetector, _ocrEngine, 180, picCamera, picPreprocessed);
+                                var result = DetectLabelFromImageV2.DetectLabel(mat, _yoloDetector, _ocrEngine, _rotatioDetector, 180, picCamera, picPreprocessed);
                                 //var result = DetectLabelFromImage.DetectLabel(mat, _ocrEngine, 180, picCamera, picPreprocessed);
 
                                 if (result != null && result.QRCode != null)

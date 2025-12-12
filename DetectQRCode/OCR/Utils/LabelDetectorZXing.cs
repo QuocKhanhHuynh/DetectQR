@@ -55,19 +55,69 @@ namespace DetectQRCode.OCR.Utils
                         }
                         else if (result.ResultPoints.Length == 3)
                         {
-                            // ZXing trả về 3 finder patterns (top-left, top-right, bottom-left)
-                            // Ta tính điểm thứ 4 (bottom-right)
-                            var p0 = new Point2f(result.ResultPoints[0].X, result.ResultPoints[0].Y); // Top-left
-                            var p1 = new Point2f(result.ResultPoints[1].X, result.ResultPoints[1].Y); // Top-right
-                            var p2 = new Point2f(result.ResultPoints[2].X, result.ResultPoints[2].Y); // Bottom-left
-                            
-                            // Tính điểm thứ 4: bottom-right = (top-right - top-left) + bottom-left
-                            var p3 = new Point2f(
-                                p1.X - p0.X + p2.X,
-                                p1.Y - p0.Y + p2.Y
+                            // 1. Lấy 3 điểm Finder Patterns dưới dạng Point2f
+                            var pA = new Point2f(result.ResultPoints[0].X, result.ResultPoints[0].Y);
+                            var pB = new Point2f(result.ResultPoints[1].X, result.ResultPoints[1].Y);
+                            var pC = new Point2f(result.ResultPoints[2].X, result.ResultPoints[2].Y);
+
+                            // Dùng List để dễ dàng tìm kiếm
+                            var points = new List<Point2f> { pA, pB, pC };
+
+                            // 2. Tính khoảng cách bình phương (squared distance) giữa các cặp điểm.
+                            // Dùng khoảng cách bình phương để tránh căn bậc hai (sqrt) giúp tính toán nhanh hơn
+                            double dAB = Math.Pow(pA.X - pB.X, 2) + Math.Pow(pA.Y - pB.Y, 2);
+                            double dBC = Math.Pow(pB.X - pC.X, 2) + Math.Pow(pB.Y - pC.Y, 2);
+                            double dCA = Math.Pow(pC.X - pA.X, 2) + Math.Pow(pC.Y - pA.Y, 2);
+
+                            // 3. Xác định điểm Top-Left (pTL)
+                            // Cạnh dài nhất (đường chéo) nối Top-Right và Bottom-Left. 
+                            // Điểm còn lại là Top-Left (pTL).
+                            Point2f pTL, pTR, pBL, pBR;
+
+                            if (dAB > dBC && dAB > dCA)
+                            {
+                                // Cạnh AB là dài nhất. Điểm C là pTL.
+                                pTL = pC;
+                                points.Remove(pC);
+                            }
+                            else if (dBC > dAB && dBC > dCA)
+                            {
+                                // Cạnh BC là dài nhất. Điểm A là pTL.
+                                pTL = pA;
+                                points.Remove(pA);
+                            }
+                            else // dCA là dài nhất
+                            {
+                                // Cạnh CA là dài nhất. Điểm B là pTL.
+                                pTL = pB;
+                                points.Remove(pB);
+                            }
+
+                            // 4. Phân loại hai điểm còn lại (pTR và pBL)
+                            // Sau khi tìm thấy pTL, hai điểm còn lại là points[0] và points[1].
+                            // Trong ảnh đã được căn chỉnh (aligned), pTR luôn nằm gần phía trên/bên phải hơn pBL.
+
+                            // Ta chọn điểm có tọa độ Y nhỏ hơn (gần đỉnh ảnh hơn) làm pTR
+                            if (points[0].Y < points[1].Y)
+                            {
+                                pTR = points[0];
+                                pBL = points[1];
+                            }
+                            else
+                            {
+                                pTR = points[1];
+                                pBL = points[0];
+                            }
+
+                            // 5. Tính điểm thứ 4 (pBR - Bottom-Right)
+                            // Dùng hình học vector: pBR = pTR - pTL + pBL
+                            pBR = new Point2f(
+                                pTR.X - pTL.X + pBL.X,
+                                pTR.Y - pTL.Y + pBL.Y
                             );
 
-                            qrPoints = new Point2f[] { p0, p1, p3, p2 };
+                            // 6. Sắp xếp lại theo thứ tự yêu cầu (TL, TR, BR, BL)
+                            qrPoints = new Point2f[] { pTL, pTR, pBR, pBL };
                         }
                         else
                         {

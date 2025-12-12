@@ -8,24 +8,19 @@ using System.IO;
 
 namespace DetectQRCode.OCR.Utils
 {
-    /// <summary>
-    /// Result class for YOLO11 detection
-    /// </summary>
-    public class DetectionResult
+    public class DetectionResult2
     {
         public int ClassId { get; set; }
         public string ClassName { get; set; } = string.Empty;
         public float Confidence { get; set; }
         public Rect BoundingBox { get; set; }
-
-        // Thay vì Mat, ta lưu danh sách các contour
-        public List<OpenCvSharp.Point[]>? Contours { get; set; }
+        public Mat? Mask { get; set; }  // For segmentation (Mask is an 8-bit single-channel Mat)
     }
 
     /// <summary>
     /// YOLO11 Segmentation Detector using ONNX Runtime
     /// </summary>
-    public class Yolo11Seg : IDisposable
+    public class Yolo11Seg2 : IDisposable
     {
         private readonly InferenceSession _session;
         private readonly SessionOptions _options;
@@ -47,10 +42,10 @@ namespace DetectQRCode.OCR.Utils
             public float[] MaskCoefficients { get; set; } = new float[MASK_COEFFICIENTS_COUNT];
         }
 
-        public Yolo11Seg(string modelPath, string[] classNames, float confThreshold = 0.25f, float iouThreshold = 0.45f)
+        public Yolo11Seg2(string modelPath, string[] classNames, float confThreshold = 0.25f, float iouThreshold = 0.45f)
         {
             if (!File.Exists(modelPath))
-            {
+            {    
                 throw new FileNotFoundException($"ONNX model not found at: {modelPath}");
             }
 
@@ -87,11 +82,11 @@ namespace DetectQRCode.OCR.Utils
         /// </summary>
         /// <param name="frame">Input image (BGR format from OpenCV)</param>
         /// <returns>List of detection results with bounding boxes and masks</returns>
-        public List<DetectionResult> Detect(Mat frame)
+        public List<DetectionResult2> Detect(Mat frame)
         {
             if (frame == null || frame.Empty())
             {
-                return new List<DetectionResult>();
+                return new List<DetectionResult2>();
             }
 
             var originalFrameWidth = frame.Width;
@@ -118,7 +113,7 @@ namespace DetectQRCode.OCR.Utils
                 if (resultsList.Count < 2)
                 {
                     Console.WriteLine("[YOLO11] Model did not return 2 outputs (Detection + Prototypes)");
-                    return new List<DetectionResult>();
+                    return new List<DetectionResult2>();
                 }
 
                 var output0 = resultsList[0].AsTensor<float>();  // Detection + coefficients [1, 116, 8400]
@@ -191,14 +186,14 @@ namespace DetectQRCode.OCR.Utils
 
                 // 2. Run NMS to filter detections
                 var finalPredictions = RunNMS(rawPredictions);
-                var finalDetections = new List<DetectionResult>();
+                var finalDetections = new List<DetectionResult2>();
 
                 // 3. Generate Masks for NMS-filtered results
                 foreach (var pred in finalPredictions)
                 {
-                    var contours = GenerateMaskContours(output1, pred.MaskCoefficients, pred.Box, originalFrameWidth, originalFrameHeight);
+                    var mask = GenerateMask(output1, pred.MaskCoefficients, pred.Box, originalFrameWidth, originalFrameHeight);
 
-                    finalDetections.Add(new DetectionResult
+                    finalDetections.Add(new DetectionResult2
                     {
                         ClassId = pred.ClassId,
                         ClassName = pred.ClassId < _classNames.Length ? _classNames[pred.ClassId] : $"Class_{pred.ClassId}",
@@ -209,59 +204,18 @@ namespace DetectQRCode.OCR.Utils
                             (int)(pred.Box[2] - pred.Box[0]),
                             (int)(pred.Box[3] - pred.Box[1])
                         ),
-                        Contours = contours // Trả về danh sách điểm contour
+                        Mask = mask // Assign the generated mask
                     });
                 }
-
 
                 return finalDetections;
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"[YOLO11] Detection error: {ex.Message}");
-                return new List<DetectionResult>();
+                return new List<DetectionResult2>();
             }
         }
-
-
-        private List<OpenCvSharp.Point[]> GenerateMaskContours(Tensor<float> prototypes, float[] coeffs, float[] box, int originalFrameWidth, int originalFrameHeight)
-        {
-            // 1. Tạo mask nhị phân (có thể là CV_32F)
-            var binaryMaskFloat = GenerateMask(prototypes, coeffs, box, originalFrameWidth, originalFrameHeight);
-
-            // 2. Nếu mask không phải CV_8UC1, convert
-            Mat mask8U;
-            if (binaryMaskFloat.Type() != MatType.CV_8UC1)
-            {
-                mask8U = new Mat();
-                binaryMaskFloat.ConvertTo(mask8U, MatType.CV_8UC1);
-                binaryMaskFloat.Dispose();
-            }
-            else
-            {
-                mask8U = binaryMaskFloat;
-            }
-
-            // 3. Find contours on mask8U (mask8U size == bounding box size)
-            Cv2.FindContours(mask8U, out OpenCvSharp.Point[][] contours, out HierarchyIndex[] hierarchy,
-                             RetrievalModes.External, ContourApproximationModes.ApproxSimple);
-
-            // 4. Map contour points from mask coordinates to original image coordinates
-            int xOffset = (int)box[0];
-            int yOffset = (int)box[1];
-
-            var mappedContours = new List<OpenCvSharp.Point[]>();
-            foreach (var contour in contours)
-            {
-                var mapped = contour.Select(p => new OpenCvSharp.Point(p.X + xOffset, p.Y + yOffset)).ToArray();
-                mappedContours.Add(mapped);
-            }
-
-            mask8U.Dispose();
-            return mappedContours;
-        }
-
-
 
         // ----------------------------------------------------------------------------------
         // ## 2. Preprocessing

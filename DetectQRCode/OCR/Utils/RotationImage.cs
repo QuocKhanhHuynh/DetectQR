@@ -5,10 +5,13 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Sdcb.RotationDetector;
+using Sdcb.PaddleInference;
+using Sdcb.PaddleOCR.Models.Local;
 
 namespace DetectQRCode.OCR.Utils
 {
-    public class HandleAndProcessImage
+    public static class RotationImage
     {
         public static RotatedRect CreateRotatedBBox(List<(int x, int y)> marks)
         {
@@ -89,37 +92,60 @@ namespace DetectQRCode.OCR.Utils
         /// <summary>
         /// Display image with visualization of contours and bounding boxes (Đã tích hợp xoay và cắt)
         /// </summary>
-        public static void DisplayImage(PictureBox ptb, string imagePath, MaskData maskData)
+        public static Mat ProcessRotationImage(Mat img, List<(int x, int y)> mask)
         {
-            try
-            {
-                // ... (Các bước kiểm tra đầu vào giữ nguyên) ...
-                if (!File.Exists(imagePath)) { /* ... */ return; }
-                if (maskData == null || maskData.Marks == null || maskData.Marks.Count == 0) { /* ... */ return; }
+            RotatedRect rotatedRect = CreateRotatedBBox(mask);
 
-                // Read image
-                Mat img = Cv2.ImRead(imagePath);
-                if (img.Empty()) { /* ... */ return; }
+            // 2. CẮT VÀ XOAY ẢNH THEO ROTATED BBOX
+            Mat resultMat = CropAndRotateMask(img, rotatedRect);
 
-                // 1. Tính Rotated Bounding Box
-                RotatedRect rotatedRect = CreateRotatedBBox(maskData.Marks);
-
-                // 2. CẮT VÀ XOAY ẢNH THEO ROTATED BBOX
-                Mat resultMat = CropAndRotateMask(img, rotatedRect);
+            return resultMat;
 
 
-                System.Drawing.Bitmap bitmap = BitmapConverter.ToBitmap(resultMat); // Hiển thị ảnh đã xoay và cắt
-                ptb.Image = bitmap;
+            //System.Drawing.Bitmap bitmap = BitmapConverter.ToBitmap(resultMat); // Hiển thị ảnh đã xoay và cắt
+            //ptb.Image = bitmap;
 
-                // Cleanup
-                img.Dispose();
-                resultMat.Dispose();
-                // preCroppedImg và rotatedImg đã được giải phóng trong hàm CropAndRotateMask nếu cần
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Lỗi khi xử lý hình ảnh:\n{ex.Message}\n{ex.StackTrace}", "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
+            //// Cleanup
+            //img.Dispose();
+            //resultMat.Dispose();
+            // preCroppedImg và rotatedImg đã được giải phóng trong hàm CropAndRotateMask nếu cần
+           
         }
+
+
+        /// <summary>
+        /// Kiểm tra và trả về góc xoay của văn bản trong ảnh (0, 90, 180, 270 độ)
+        /// </summary>
+        /// <param name="img">Ảnh đầu vào cần kiểm tra</param>
+        /// <returns>Góc xoay của văn bản (0, 90, 180, hoặc 270 độ)</returns>
+        public static RotationDegree CheckLabelRotation(Mat img, PaddleRotationDetector rotatioDetector)
+        {
+            RotationResult r = rotatioDetector.Run(img);
+            return r.Rotation;
+        }
+
+        public static Mat Rotate(Mat src, RotationDegree angle)
+        {
+            Mat dst = new Mat();
+
+            switch (angle)
+            {
+                case RotationDegree._90:
+                    Cv2.Rotate(src, dst, RotateFlags.Rotate90Clockwise);
+                    break;
+                case RotationDegree._180:
+                    Cv2.Rotate(src, dst, RotateFlags.Rotate180);
+                    break;
+                case RotationDegree._270:
+                    Cv2.Rotate(src, dst, RotateFlags.Rotate90Counterclockwise);
+                    break;
+                default:
+                    dst = src.Clone();
+                    break;
+            }
+
+            return dst;
+        }
+
     }
 }
